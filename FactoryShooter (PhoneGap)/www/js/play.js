@@ -8,11 +8,11 @@ var width = window.innerWidth, height = window.innerHeight;
 var w = window.innerWidth/1200, h = window.innerHeight/800;
 
 //Declare variables in global scope
-var rob, bullets, sky, country, factory, scoreText, fireGas;
+var rob, bullets, sky, country, factory, scoreText, fireGas, powerText, bubble;
 //cursors
 var cursors;
 //sounds
-var jump, fire, playMusic, hitSound, spewSound, hardHit;
+var jump, fire, playMusic, hitSound, spewSound, hardHit, powerup;
 //Variables for firing bullets;
 var fireRate = 100, nextFire = 0;
 //keys 
@@ -20,6 +20,8 @@ var spaceKey;
 //Buttons
 var buttonLeft, buttonRight, buttonUp, buttonShoot;
 var leftPressed, rightPressed, upPressed, shootPressed;
+//Variable to check if any power up is active
+var poweredUp, currentPowerUp;
 
 //Player Object
 var playerObj = {
@@ -37,7 +39,7 @@ var playerObj = {
 
 //Object for bullets
 var bulletObj = {
-    speedX: 400 * w
+    speedX: 650 * w
 }
 
 //Object for factory
@@ -58,7 +60,78 @@ var textStyle = {
     fill: "#000"
 }
 
+//Object to control power ups
+var powerObj = {
+    prevTime: 0,
+    rate: 20000,
+    time: 6000,
+    prevActivate: 0
+}
+
+//Power-ups
+var powerUps = [
+    {
+        name: "Double Speed!",
+        effect: function() {
+            playerObj.speedLeft *= 2;
+            playerObj.speedRight *= 2;
+        },
+        reverse: function() {
+            playerObj.speedLeft /= 2;
+            playerObj.speedRight /=2;
+        }
+    },
+    {
+        name: "Double Thrust!",
+        effect: function() {
+            playerObj.speedUp *= 2;
+        },
+        reverse: function() {
+            playerObj.speedUp /= 2;
+        }
+    },
+    {
+        name: "Factory Slowdown!",
+        effect: function() {
+            factoryObj.spewRate *= 2;
+        },
+        reverse: function() {
+            factoryObj.spewRate /= 2;
+        }
+    },
+    {
+        name: "Fast Bullets",
+        effect: function() {
+            bulletObj.speedX *= 2;
+        },
+        reverse: function() {
+            bulletObj.speedX /= 2;
+        }
+    },
+    {
+        name: "Extra Health!",
+        effect: function() {
+            playerObj.health += 30;
+        },
+        reverse: function() {
+            
+        }
+    },
+    {
+        name: "Double Score!",
+        effect: function() {
+            playerObj.hitIncrement *= 2;
+        },
+        reverse: function() {
+            playerObj.hitIncrement /= 2;
+        }
+    }
+]
+
 function create() {
+    
+    //version 
+    console.log("v 1.9");
     
     //Start physics
     game.physics.startSystem(Phaser.Physics.ARCADE);
@@ -71,6 +144,7 @@ function create() {
     hitSound = game.add.audio("hit");
     spewSound = game.add.audio("spew");
     hardHit = game.add.audio("hardHit");
+    powerup = game.add.audio("powerup");
     
     console.log(playerObj.speedRight, w);
     
@@ -124,6 +198,23 @@ function create() {
     //Score text
     scoreText = game.add.text(0, 0, "Score: " + playerObj.score + "   " + "Health: " + playerObj.health, textStyle);
     
+    //Power Up text
+    powerText = game.add.text(0, 0, "", {
+        font: "bold 30px Arial",
+        fill: "#000",
+        boundsAlignH: "center",
+        boundsAlignV: "middle"
+    });
+    powerText.visible = false;
+    powerText.setTextBounds(0, height - 50, width, 50);
+    
+    //Power up bubble
+    bubble = game.add.sprite(game.world.centerX, game.world.centerY, "bubble");
+    bubble.visible = false;
+    bubble.width = 64;
+    bubble.height = 64;
+    game.physics.arcade.enable(bubble);
+    
     //Buttons
     addButtons();
     
@@ -136,6 +227,11 @@ function update() {
     game.physics.arcade.collide(rob, factory, playerHitFactory);
     game.physics.arcade.overlap(rob, fireGas, fireHitPlayer);
     game.physics.arcade.overlap(bullets, fireGas, bulletsHitFire);
+    
+    //If power up is visible(available) check collision
+    if (bubble.visible) {
+        game.physics.arcade.overlap(rob, bubble, activatePowerUp);
+    }
     
     //Check rob's health
     if (playerObj.health <= 0) {
@@ -156,6 +252,18 @@ function update() {
     
     //Spew gas from factory
     factorySpew();
+    
+    //Create Power Up
+    if (game.time.now > powerObj.prevTime + powerObj.rate) {
+        powerObj.prevTime = game.time.now;
+        createPowerUp();
+    }
+    if (poweredUp && game.time.now > powerObj.prevActivate + powerObj.time) {
+        currentPowerUp.reverse();
+        poweredUp = false;
+        powerText.visible = false;
+        console.log("power end");
+    }
     
     //change score text
     scoreText.text = "Score: " + playerObj.score + "   " + "Health: " + playerObj.health;
@@ -246,6 +354,31 @@ function getScore() {
 //set score to local storage
 function setScore(num) {
     localStorage.setItem("score", num.toString());
+}
+
+function createPowerUp() {
+    powerup.play();
+    bubble.visible = true;
+    bubble.x = game.rnd.integerInRange(bubble.width, width - (bubble.width + factory.width));
+    bubble.y = game.rnd.integerInRange(bubble.height, height - bubble.height);
+}
+
+//Create a power up in a random location
+function activatePowerUp() {
+    console.log("power start!");
+    //Check is any power up is active
+    if (poweredUp) {
+        currentPowerUp.reverse();
+    }
+    //activation code
+    powerObj.prevActivate = game.time.now;
+    bubble.visible = false;
+    currentPowerUp = game.rnd.pick(powerUps);
+    console.log(currentPowerUp.name);
+    powerText.setText(currentPowerUp.name);
+    powerText.visible = true;
+    currentPowerUp.effect();
+    poweredUp = true;
 }
 
 function addButtons() {
